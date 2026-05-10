@@ -1,0 +1,79 @@
+@startuml DFD_Future2_0
+
+skinparam ArrowColor #555555
+skinparam ArrowThickness 1.5
+skinparam RectangleBorderColor #888888
+skinparam DatabaseBorderColor #888888
+skinparam NoteBackgroundColor #FFFDE7
+skinparam ComponentBorderColor #888888
+
+title Data Flow Diagram — «Будущее 2.0» (целевое состояние)
+
+' External entities
+actor "Сотрудник / аналитик" as analyst
+actor "Оператор клиники" as clinic_op
+actor "Клиент финтех" as fintech_client
+actor "Партнёр (фармацевтика / электроника)" as partner
+
+' Processes
+rectangle "API Gateway\n(маршрутизация + авторизация)" as gw #E8F4FD
+rectangle "Clinic API\n(операции клиник)" as clinic_api #E8F4FD
+rectangle "Fintech API\n(финансовые сервисы)" as fintech_api #E8F4FD
+rectangle "AI Service\n(ИИ-анализ медданных)" as ai_svc #E8F4FD
+rectangle "Partner Integration\n(шлюз партнёров)" as partner_svc #E8F4FD
+rectangle "Data Platform\n(Lakehouse / Spark)" as data_platform #FFF8E1
+rectangle "Self-Service BI\n(портал отчётности)" as bi_portal #E8F5E9
+
+' Data stores
+database "Clinic DB\n(PostgreSQL)" as clinic_db #F3E5F5
+database "EHR\n(медкарты — изолированно)" as ehr #FFEBEE
+database "Fintech DB\n(PostgreSQL + Redis)" as fintech_db #F3E5F5
+database "ML Models\n(MLflow + S3)" as ml_store #F3E5F5
+database "Data Lakehouse\n(Delta Lake)" as lakehouse #FFF9C4
+
+' Event bus
+queue "Event Bus\n(Apache Kafka)" as kafka #E0F7FA
+
+' Flows: users → APIs
+clinic_op --> gw : запросы к клинике
+fintech_client --> gw : банковские операции
+analyst --> bi_portal : просмотр/конструирование отчётов
+partner --> gw : каталоги, заказы
+
+' Gateway routing
+gw --> clinic_api : маршрут clinic.*
+gw --> fintech_api : маршрут fintech.*
+gw --> ai_svc : маршрут ai.*
+gw --> partner_svc : маршрут partner.*
+
+' APIs → DBs
+clinic_api --> clinic_db : CRUD
+fintech_api --> fintech_db : CRUD
+ai_svc --> ml_store : загрузка моделей
+
+' AI reads EHR (protected channel)
+ehr --> ai_svc : медданные (защищённый канал)
+
+' APIs → Kafka (produce events)
+clinic_api --> kafka : clinic.events\n(визиты, инвентарь, персонал)
+fintech_api --> kafka : fintech.events\n(платежи, кредиты, счета)
+ai_svc --> kafka : ai.results\n(агрегаты без ПД)
+partner_svc --> kafka : partner.events\n(поставки, каталоги)
+
+' Kafka → Data Platform
+kafka --> data_platform : стриминг событий\n(Kafka Connect)
+
+' Data Platform → Lakehouse
+data_platform --> lakehouse : трансформация\nи сохранение
+
+' BI Portal → Data Platform
+bi_portal --> data_platform : запросы данных\n(RBAC-фильтрация)
+
+' Note: EHR excluded from BI
+note right of ehr
+  Медкарты, истории болезней
+  и результаты исследований
+  НЕ поступают в витрину данных
+end note
+
+@enduml

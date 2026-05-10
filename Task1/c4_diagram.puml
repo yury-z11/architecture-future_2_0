@@ -1,0 +1,65 @@
+@startuml C4_Container_Future2_0_Target
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+
+title C4 Container Diagram — «Будущее 2.0» (целевая архитектура, год +1)
+
+Person(employee, "Сотрудник / аналитик", "Пользователь портала самообслуживания")
+Person(clinic_op, "Оператор клиники", "Ввод данных, работа с пациентами")
+Person(fintech_user, "Клиент финтех", "Банковские и финансовые сервисы")
+
+System_Boundary(headoffice, "Головной офис (Домен: Аналитика)") {
+    Container(self_service, "Портал самообслуживания (Self-Service BI)", "React + Power BI Embedded", "Просмотр и конструирование отчётов в рамках прав доступа")
+    Container(data_platform, "Data Platform / Data Lakehouse", "Apache Spark, Delta Lake (Cloud)", "Хранение и трансформация данных. Заменяет DWH-монолит")
+    Container(catalog, "Data Catalog", "Apache Atlas / DataHub", "Метаданные, lineage, управление доступом")
+}
+
+System_Boundary(clinic_domain, "Домен: Клиники") {
+    Container(clinic_api, "Clinic API Gateway", "Go / Kotlin", "Управление пациентами, расписание, инвентаризация")
+    Container(clinic_db, "Clinic DB", "PostgreSQL", "Оперативные данные клиники (не медкарты)")
+    Container(ehr_system, "EHR / Медицинская карта", "Изолированная система", "Медкарты, истории болезней. НЕ подключается к витрине данных")
+}
+
+System_Boundary(fintech_domain, "Домен: Финтех") {
+    Container(fintech_api, "Fintech API", "Golang / Java", "Счета, кредиты, платежи")
+    Container(fintech_db, "Fintech DB", "PostgreSQL + Redis", "Финансовые данные, транзакции")
+}
+
+System_Boundary(ai_domain, "Домен: ИИ-сервисы") {
+    Container(ai_api, "AI Service API", "Python / FastAPI", "ИИ для медицинских данных и аналитики")
+    Container(ai_models, "ML Platform", "MLflow + S3", "Хранение и версионирование моделей")
+}
+
+System_Boundary(integration, "Интеграционный слой") {
+    Container(event_bus, "Event Bus", "Apache Kafka", "Асинхронная передача событий между доменами")
+    Container(api_gateway, "API Gateway", "Kong / AWS API Gateway", "Маршрутизация и авторизация запросов")
+}
+
+' Relationships
+Rel(employee, self_service, "Просматривает отчёты", "HTTPS")
+Rel(clinic_op, clinic_api, "Работает с данными пациентов", "HTTPS")
+Rel(fintech_user, fintech_api, "Банковские операции", "HTTPS/mTLS")
+
+Rel(self_service, data_platform, "Запросы данных", "JDBC/REST")
+Rel(data_platform, catalog, "Метаданные и lineage", "API")
+
+Rel(clinic_api, event_bus, "Публикует события (визит, инвентарь)", "Kafka")
+Rel(fintech_api, event_bus, "Публикует события (платёж, кредит)", "Kafka")
+Rel(ai_api, event_bus, "Публикует результаты анализа", "Kafka")
+
+Rel(event_bus, data_platform, "Стриминг данных", "Kafka Connect")
+
+Rel(clinic_api, clinic_db, "CRUD", "SQL")
+Rel(fintech_api, fintech_db, "CRUD", "SQL")
+Rel(ai_api, ai_models, "Загрузка моделей", "S3 API")
+
+' AI читает только EHR (не витрину)
+Rel(ai_api, ehr_system, "Чтение медданных для анализа", "Защищённый канал")
+
+Rel(api_gateway, clinic_api, "Маршрутизация", "HTTP")
+Rel(api_gateway, fintech_api, "Маршрутизация", "HTTP")
+Rel(api_gateway, ai_api, "Маршрутизация", "HTTP")
+
+@enduml

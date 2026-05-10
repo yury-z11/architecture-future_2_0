@@ -1,0 +1,11 @@
+# Terraform state и секреты — НЕ коммитить
+terraform.tfvars
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+*.tfplan
+
+# IDE
+.idea/
+.vscode/
