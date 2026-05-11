@@ -1,0 +1,47 @@
+@startuml Task4_Terraform_Deployment
+skinparam componentStyle rectangle
+skinparam shadowing false
+title Task4 — схема автоматизации развертывания Terraform
+
+actor "DevOps / Architect" as user
+rectangle "Terraform CLI" as tf
+cloud "Yandex Cloud" {
+  rectangle "VPC: future20-network" as vpc {
+    rectangle "Public subnet 10.0.1.0/24" as pub {
+      component "API Gateway VM\n2 vCPU / 4 GB / 30 GB SSD\nPublic IP\nSG: api_sg" as api
+    }
+    rectangle "Private subnet 10.0.2.0/24" as priv {
+      component "Data Platform VM\n8 vCPU / 32 GB\n50 GB SSD + 500 GB HDD" as data
+      component "Kafka Broker VM\n4 vCPU / 8 GB / 100 GB SSD" as kafka
+      database "Managed PostgreSQL 15\nclinic_db + fintech_db" as pg
+    }
+    component "NAT Gateway\n+ Route Table" as nat
+    component "Security Groups" as sg
+    storage "Data Storage Disk\nnetwork-hdd 500 GB" as disk
+  }
+}
+rectangle "Manual after terraform apply" as manual {
+  component "Kong routes/plugins" as kong
+  component "Kafka topics/ACL/KRaft" as kafkamanual
+  component "Spark/Delta/dbt jobs" as sparkmanual
+  component "SSL certificates" as ssl
+  component "Kafka Connect connectors" as kc
+}
+user --> tf : terraform init/plan/apply
+tf --> vpc : creates and manages
+tf --> api
+tf --> data
+tf --> kafka
+tf --> pg
+tf --> nat
+tf --> sg
+tf --> disk
+api --> data : internal HTTPS/SQL
+api --> kafka : internal traffic
+data --> pg : SQL
+kafka --> data : events
+priv --> nat : outbound updates
+manual ..> api
+manual ..> kafka
+manual ..> data
+@enduml
